@@ -7,7 +7,7 @@ Live network intrusion detection & alerting system — Flask + Scapy + Gemini en
 ```bash
 pip3 install -r requirements.txt
 export GEMINI_API_KEY="your_key_here"          # from aistudio.google.com/app/apikey
-export TARGET_IP="192.168.1.50"                 # mini laptop's IP
+export TARGET_IP="192.168.1.XX"                 # TARGET DATACENTER/NODE Ip addr
 export SSH_USER="pi"                            # SSH username on mini laptop
 export AUTH_LOG_PATH="/var/log/auth.log"        # or /var/log/secure on RHEL-based systems
 ```
