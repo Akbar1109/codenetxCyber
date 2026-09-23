@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catch the Intruder — Cyber Sentinel SOC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070b12;
+    --panel: #0d1522;
+    --panel-hover: #111c2e;
+    --border: #1a2a40;
+    --border-glow: rgba(0, 240, 255, 0.25);
+    --text: #e6f1fc;
+    --muted: #8194aa;
+    --cyan: #00f0ff;
+    --cyan-dim: rgba(0, 240, 255, 0.12);
+    --critical: #ff3b5c;
+    --high: #ff9800;
+    --medium: #fbc02d;
+    --low: #00e676;
+    --success: #00e676;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image: 
+      radial-gradient(circle at 15% 15%, rgba(0, 240, 255, 0.04) 0%, transparent 40%),
+      radial-gradient(circle at 85% 85%, rgba(255, 59, 92, 0.03) 0%, transparent 40%),
+      linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+  }
+
+  /* Header */
+  header {
+    padding: 16px 28px;
+    background: rgba(13, 21, 34, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-logo {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, #00f0ff, #0077ff);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
+  }
+  .brand-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #fff;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .brand-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    background: var(--cyan-dim);
+    color: var(--cyan);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+  }
+  .brand-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .header-actions { display: flex; align-items: center; gap: 16px; }
+
+  .gemini-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px;
+    background: #111a28;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .led-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+    animation: pulseLed 2s infinite ease-in-out;
+  }
+  @keyframes pulseLed {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.6; }
+  }
+
+  .btn {
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #00f0ff, #0091ff);
+    color: #050a12;
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.6);
+  }
+  .btn-secondary {
+    background: #172335;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover {
+    background: #1f3049;
+    border-color: #2b4566;
+  }
+
+  /* Main Layout */
+  main {
+    padding: 24px 28px;
+    max-width: 1560px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* Network Health Hex & Circular Overview Section */
+  .health-section {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 1080px) {
+    .health-section { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    position: relative;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  .panel h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-transform: uppercase;
+  }
+
+  /* Hexagon Health Radar */
+  .hex-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0;
+  }
+  .hex-svg-wrapper {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hex-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+    filter: drop-shadow(0 0 12px rgba(0, 240, 255, 0.25));
+  }
+  .hex-bg {
+    fill: rgba(13, 25, 42, 0.6);
+    stroke: #162438;
+    stroke-width: 6;
+  }
+  .hex-meter {
+    fill: none;
+    stroke: var(--cyan);
+    stroke-width: 7;
+    stroke-linecap: round;
+    stroke-dasharray: 480;
+    stroke-dashoffset: 48;
+    transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.4s ease;
+  }
+  .hex-content {
+    position: absolute;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+  .hex-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 38px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+    text-shadow: 0 0 16px rgba(0, 240, 255, 0.5);
+  }
+  .hex-sub {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--cyan);
+    margin-top: 6px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .health-meta {
+    width: 100%;
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .health-mini-card {
+    background: rgba(8, 14, 24, 0.7);
+    border: 1px solid #1a293d;
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .health-mini-card .val {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .health-mini-card .lbl {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* Round Circular Gauges Grid */
+  .gauges-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+  }
+
+  .round-gauge-card {
+    background: rgba(9, 16, 26, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .round-gauge-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    opacity: 0.3;
+  }
+  .gauge-svg-wrap {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 8px 0;
+  }
+  .gauge-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+  .gauge-bg {
+    fill: none;
+    stroke: #162438;
+    stroke-width: 8;
+  }
+  .gauge-bar {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 283;
+    stroke-dashoffset: 200;
+    transition: stroke-dashoffset 0.6s ease;
+  }
+  .gauge-val {
+    position: absolute;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .gauge-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 4px;
+    text-align: center;
+  }
+  .gauge-desc {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 2px;
+  }
+
+  /* Hex Node Telemetry Row */
+  .hex-nodes-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+  @media (max-width: 768px) {
+    .hex-nodes-bar { grid-template-columns: 1fr 1fr; }
+  }
+  .hex-node {
+    background: #0d1726;
+    border: 1px solid #1a2a40;
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .hex-node-icon {
+    font-size: 18px;
+    color: var(--cyan);
+  }
+  .hex-node-info .title {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .hex-node-info .val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* Traffic Panel */
+  .traffic-panel {
+    display: flex;
+    flex-direction: column;
+  }
+  #chart {
+    width: 100%;
+    height: 150px;
+    display: block;
+    background: #09101a;
+    border-radius: 8px;
+    border: 1px solid #152233;
+  }
+
+  /* Alert Feed & Smooth Cards */
+  .alerts-container {
+    display: flex;
+    flex-direction: column;
+  }
+  .alerts-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .alerts-tools {
+    display: flex;
+    gap: 8px;
+  }
+
+  #alertFeed {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 120px;
+  }
+
+  /* Crucial: ONLY newly created alert cards animate once, NOT every 1.5s! */
+  .alert-card {
+    background: #0f1826;
+    border: 1px solid #1a2b42;
+    border-left: 5px solid var(--medium);
+    border-radius: 8px;
+    padding: 14px 18px;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .alert-card:hover {
+    transform: translateX(4px);
+    border-color: #263e61;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .alert-card.new-alert-enter {
+    animation: alertSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes alertSlideIn {
+    0% { opacity: 0; transform: translateY(-12px) scale(0.98); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .alert-card.Critical { border-left-color: var(--critical); }
+  .alert-card.High { border-left-color: var(--high); }
+  .alert-card.Medium { border-left-color: var(--medium); }
+  .alert-card.Low { border-left-color: var(--low); }
+
+  .alert-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .alert-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .alert-kind {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #fff;
+  }
+  .alert-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .badge-Critical { background: rgba(255, 59, 92, 0.2); color: var(--critical); border: 1px solid rgba(255, 59, 92, 0.4); }
+  .badge-High { background: rgba(255, 152, 0, 0.2); color: var(--high); border: 1px solid rgba(255, 152, 0, 0.4); }
+  .badge-Medium { background: rgba(251, 192, 45, 0.2); color: var(--medium); border: 1px solid rgba(251, 192, 45, 0.4); }
+  .badge-Low { background: rgba(0, 230, 118, 0.2); color: var(--low); border: 1px solid rgba(0, 230, 118, 0.4); }
+
+  .alert-repeat-tag {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #1e2c40;
+    color: #9ab4d0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .alert-time {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .alert-detail {
+    font-size: 13px;
+    color: #c4d7ec;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+  .alert-mitre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--cyan);
+    margin-bottom: 10px;
+    display: inline-block;
+    padding: 3px 8px;
+    background: rgba(0, 240, 255, 0.08);
+    border-radius: 4px;
+    border: 1px solid rgba(0, 240, 255, 0.2);
+  }
+
+  .alert-analysis {
+    font-size: 12.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    background: #09101c;
+    border: 1px solid #162438;
+    border-radius: 6px;
+    padding: 12px 14px;
+    color: #d1e2f3;
+  }
+  .analysis-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--cyan);
+    font-style: italic;
+  }
+  .spinner-dot {
+    width: 10px; height: 10px; border: 2px solid var(--cyan);
+    border-top-color: transparent; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+
+  .empty {
+    color: var(--muted);
+    text-align: center;
+    padding: 42px 0;
+    font-size: 13px;
+    border: 1px dashed #1e2d42;
+    border-radius: 8px;
+    background: rgba(9, 16, 26, 0.4);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-logo">🛡️</div>
+    <div>
+      <div class="brand-title">
+        CATCH THE INTRUDER
+        <span class="brand-badge">SOC LIVE</span>
+      </div>
+      <div class="brand-sub">Neural Intrusion Detection & AI Forensic Sentinel</div>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <div class="gemini-pill" id="geminiPill">
+      <div class="led-dot"></div>
+      <span>Gemini 3.6 Flash: <b>ACTIVE</b></span>
+    </div>
+
+    <button class="btn btn-secondary" onclick="clearAlerts()" title="Clear alert feed">
+      🧹 Clear
+    </button>
+    
+    <button class="btn btn-primary" onclick="simulateAlert('port_scan')" title="Simulate a test port-scan alert to verify Gemini">
+      ⚡ Test AI Alert
+    </button>
+  </div>
+</header>
+
+<main>
+  <!-- TOP SECTION: HEXAGON & ROUND NETWORK HEALTH GRAPHS -->
+  <section class="health-section">
+    <!-- Main Hexagon Gauge -->
+    <div class="panel hex-container">
+      <h2>🛡 Defense Level</h2>
+      <div class="hex-svg-wrapper">
+        <svg class="hex-svg" viewBox="0 0 200 200">
+          <!-- Hexagon Path: Radius 80 around center (100,100) -->
+          <!-- Hex points at angles 0, 60, 120, 180, 240, 300 deg -->
+          <polygon class="hex-bg" points="180,100 140,169.28 60,169.28 20,100 60,30.72 140,30.72"/>
+          <polygon class="hex-meter" id="hexMeter" points="180,100 140,169.28 60,169.28 20,100 60,30.72 140,30.72"/>
+        </svg>
+        <div class="hex-content">
+          <div class="hex-score" id="healthScore">100%</div>
+          <div class="hex-sub" id="threatStatus">OPTIMAL</div>
+        </div>
+      </div>
+
+      <div class="health-meta">
+        <div class="health-mini-card">
+          <div class="val" id="totalAlertsVal" style="color: #fff;">0</div>
+          <div class="lbl">Total Alerts</div>
+        </div>
+        <div class="health-mini-card">
+          <div class="val" id="recentAlertsVal" style="color: var(--cyan);">0</div>
+          <div class="lbl">Active (5m)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Radial Gauges & Telemetry Nodes -->
+    <div class="panel">
+      <h2>🌐 Network Health & Threat Radar</h2>
+      
+      <div class="gauges-grid">
+        <!-- Gauge 1: Threat Index -->
+        <div class="round-gauge-card">
+          <div class="gauge-title">Threat Velocity</div>
+          <div class="gauge-svg-wrap">
+            <svg class="gauge-svg" viewBox="0 0 100 100">
+              <circle class="gauge-bg" cx="50" cy="50" r="42"/>
+              <circle class="gauge-bar" id="threatGauge" cx="50" cy="50" r="42" style="stroke: #00f0ff;"/>
+            </svg>
+            <div class="gauge-val" id="threatGaugeVal">0</div>
+          </div>
+          <div class="gauge-desc" id="threatGaugeSub">0 pkts/s burst</div>
+        </div>
+
+        <!-- Gauge 2: Port Scan Index -->
+        <div class="round-gauge-card">
+          <div class="gauge-title">Port Scan Probes</div>
+          <div class="gauge-svg-wrap">
+            <svg class="gauge-svg" viewBox="0 0 100 100">
+              <circle class="gauge-bg" cx="50" cy="50" r="42"/>
+              <circle class="gauge-bar" id="scanGauge" cx="50" cy="50" r="42" style="stroke: #fbc02d;"/>
+            </svg>
+            <div class="gauge-val" id="scanGaugeVal">0</div>
+          </div>
+          <div class="gauge-desc">T1046 Detection</div>
+        </div>
+
+        <!-- Gauge 3: Brute Force Index -->
+        <div class="round-gauge-card">
+          <div class="gauge-title">Auth Violations</div>
+          <div class="gauge-svg-wrap">
+            <svg class="gauge-svg" viewBox="0 0 100 100">
+              <circle class="gauge-bg" cx="50" cy="50" r="42"/>
+              <circle class="gauge-bar" id="authGauge" cx="50" cy="50" r="42" style="stroke: #ff3b5c;"/>
+            </svg>
+            <div class="gauge-val" id="authGaugeVal">0</div>
+          </div>
+          <div class="gauge-desc">T1110 Defense</div>
+        </div>
+      </div>
+
+      <!-- Hex Nodes Telemetry Status Bar -->
+      <div class="hex-nodes-bar">
+        <div class="hex-node">
+          <div class="hex-node-icon">⬢</div>
+          <div class="hex-node-info">
+            <div class="title">Packet Sniffer</div>
+            <div class="val" id="snifferStatus">Active</div>
+          </div>
+        </div>
+        <div class="hex-node">
+          <div class="hex-node-icon">⬢</div>
+          <div class="hex-node-info">
+            <div class="title">Target Perimeter</div>
+            <div class="val" id="targetIpDisplay">192.168.1.50</div>
+          </div>
+        </div>
+        <div class="hex-node">
+          <div class="hex-node-icon">⬢</div>
+          <div class="hex-node-info">
+            <div class="title">SSH User</div>
+            <div class="val" id="sshUserDisplay">pi</div>
+          </div>
+        </div>
+        <div class="hex-node">
+          <div class="hex-node-icon">⬢</div>
+          <div class="hex-node-info">
+            <div class="title">Packets Ingested</div>
+            <div class="val" id="packetsCount">0</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- LIVE TRAFFIC STREAM -->
+  <section class="panel traffic-panel">
+    <h2>
+      <span>📡 Real-Time SYN Connection Stream (Outbound / Target)</span>
+      <span style="font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--cyan);">Rolling 30-Second Window</span>
+    </h2>
+    <canvas id="chart"></canvas>
+  </section>
+
+  <!-- INCIDENT ALERT FEED -->
+  <section class="panel alerts-container">
+    <div class="alerts-header">
+      <h2>🚨 Forensic Alert Feed & AI Analysis</h2>
+      <div class="alerts-tools">
+        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="simulateAlert('brute_force')">
+          + Simulate SSH Brute Force
+        </button>
+        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="simulateAlert('possible_compromise')">
+          + Simulate Compromise
+        </button>
+      </div>
+    </div>
+    
+    <div id="alertFeed">
+      <div class="empty">No alerts detected — system monitoring network perimeter...</div>
+    </div>
+  </section>
+</main>
+
+<script>
+// --- CANVAS TRAFFIC GRAPH ---
+const chart = document.getElementById('chart');
+const ctx = chart.getContext('2d');
+
+function resizeCanvas() {
+  chart.width = chart.clientWidth * window.devicePixelRatio;
+  chart.height = chart.clientHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function drawTraffic(points) {
+  const w = chart.clientWidth;
+  const h = chart.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  // Draw grid lines
+  ctx.strokeStyle = '#132030';
+  ctx.lineWidth = 1;
+  for (let y = 25; y < h; y += 30) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  if (!points || points.length < 2) return;
+
+  const now = Date.now() / 1000;
+  const windowSec = 30;
+  const buckets = new Array(30).fill(0);
+
+  points.forEach(p => {
+    const age = now - p.ts;
+    if (age <= windowSec && age >= 0) {
+      const idx = Math.max(0, 29 - Math.floor(age));
+      buckets[idx]++;
+    }
+  });
+
+  const maxVal = Math.max(3, ...buckets);
+  const stepX = w / (buckets.length - 1);
+
+  // Gradient area
+  const gradient = ctx.createLinearGradient(0, 0, 0, h);
+  gradient.addColorStop(0, 'rgba(0, 240, 255, 0.35)');
+  gradient.addColorStop(1, 'rgba(0, 240, 255, 0.0)');
+
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  buckets.forEach((v, i) => {
+    const x = i * stepX;
+    const y = h - (v / maxVal) * (h - 24) - 8;
+    ctx.lineTo(x, y);
+  });
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  // Stroke line
+  ctx.beginPath();
+  buckets.forEach((v, i) => {
+    const x = i * stepX;
+    const y = h - (v / maxVal) * (h - 24) - 8;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#00f0ff';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#00f0ff';
+  ctx.shadowBlur = 8;
+  ctx.stroke();
+  ctx.shadowBlur = 0; // reset
+}
+
+
+// --- SMART ALERT FEED (Zero Re-Rendering / No Looping Animation) ---
+const knownAlertIds = new Set();
+
+function formatTime(timestamp) {
+  const d = new Date(timestamp * 1000);
+  return d.toLocaleTimeString();
+}
+
+function renderAlerts(alerts) {
+  const feed = document.getElementById('alertFeed');
+
+  if (!alerts || !alerts.length) {
+    if (knownAlertIds.size > 0 || !feed.querySelector('.empty')) {
+      feed.innerHTML = '<div class="empty">No alerts detected — system monitoring network perimeter...</div>';
+      knownAlertIds.clear();
+    }
+    return;
+  }
+
+  // Remove empty placeholder if present
+  const emptyEl = feed.querySelector('.empty');
+  if (emptyEl) emptyEl.remove();
+
+  // Track currently active IDs from the server
+  const currentIds = new Set(alerts.map(a => a.id));
+
+  // Remove cards that are no longer in server list
+  knownAlertIds.forEach(id => {
+    if (!currentIds.has(id)) {
+      const el = document.getElementById('card-' + id);
+      if (el) el.remove();
+      knownAlertIds.delete(id);
+    }
+  });
+
+  // Process alerts newest first
+  for (let i = alerts.length - 1; i >= 0; i--) {
+    const a = alerts[i];
+
+    if (knownAlertIds.has(a.id)) {
+      // Alert already rendered: update contents smoothly without re-animating or re-creating DOM
+      const card = document.getElementById('card-' + a.id);
+      if (card) {
+        // Update repeat counter
+        const repeatEl = card.querySelector('.alert-repeat-tag');
+        if (a.count > 1) {
+          if (!repeatEl) {
+            const badgeWrap = card.querySelector('.alert-title-wrap');
+            const newBadge = document.createElement('span');
+            newBadge.className = 'alert-repeat-tag';
+            newBadge.textContent = `x${a.count}`;
+            badgeWrap.appendChild(newBadge);
+          } else {
+            repeatEl.textContent = `x${a.count}`;
+          }
+        }
+
+        // Update AI analysis text if finished
+        const analysisEl = card.querySelector('.alert-analysis');
+        if (analysisEl && a.analysis && analysisEl.dataset.text !== a.analysis) {
+          analysisEl.dataset.text = a.analysis;
+          analysisEl.innerHTML = a.analysis;
+        }
+      }
+    } else {
+      // Genuinely NEW alert: create element, add entrance animation, and prepend
+      knownAlertIds.add(a.id);
+
+      const card = document.createElement('div');
+      card.id = 'card-' + a.id;
+      card.className = `alert-card ${a.severity} new-alert-enter`;
+
+      const repeatHtml = a.count > 1 ? `<span class="alert-repeat-tag">x${a.count}</span>` : '';
+      
+      const analysisHtml = a.analyzed || !a.analysis.includes('analyzing') 
+        ? a.analysis 
+        : `<div class="analysis-loading"><div class="spinner-dot"></div> ${a.analysis}</div>`;
+
+      card.innerHTML = `
+        <div class="alert-top">
+          <div class="alert-title-wrap">
+            <span class="alert-kind">${a.kind.replace(/_/g, ' ')}</span>
+            <span class="alert-badge badge-${a.severity}">${a.severity}</span>
+            ${repeatHtml}
+          </div>
+          <span class="alert-time">${formatTime(a.timestamp)}</span>
+        </div>
+        <div class="alert-detail"><b>Source:</b> <code>${a.src}</code> — ${a.detail}</div>
+        <div class="alert-mitre">MITRE ATT&CK: ${a.mitre}</div>
+        <div class="alert-analysis" data-text="${a.analysis}">${analysisHtml}</div>
+      `;
+
+      // Prepend so newest is on top
+      feed.insertBefore(card, feed.firstChild);
+
+      // Remove entrance animation class after animation completes
+      setTimeout(() => {
+        card.classList.remove('new-alert-enter');
+      }, 400);
+    }
+  }
+}
+
+
+// --- HEXAGON & RADIAL GAUGE CONTROLLERS ---
+function updateHexMeter(score, threatLevel, threatColor) {
+  const hexMeter = document.getElementById('hexMeter');
+  const scoreEl = document.getElementById('healthScore');
+  const statusEl = document.getElementById('threatStatus');
+
+  scoreEl.textContent = `${score}%`;
+  scoreEl.style.color = threatColor;
+  statusEl.textContent = threatLevel;
+  statusEl.style.color = threatColor;
+
+  // Hexagon perimeter is ~480px. Offset = 480 * (1 - score / 100)
+  const perimeter = 480;
+  const offset = perimeter * (1 - (score / 100));
+  hexMeter.style.strokeDashoffset = offset;
+  hexMeter.style.stroke = threatColor;
+}
+
+function updateRadialGauge(id, val, max, color) {
+  const bar = document.getElementById(id);
+  if (!bar) return;
+  const circumference = 283; // 2 * PI * 45 or 42
+  const pct = Math.min(100, Math.max(0, (val / max) * 100));
+  const offset = circumference * (1 - (pct / 100));
+  bar.style.strokeDashoffset = offset;
+  if (color) bar.style.stroke = color;
+}
+
+
+// --- SIMULATE & CLEAR ACTIONS ---
+async function simulateAlert(kind) {
+  try {
+    const res = await fetch(`/api/test_alert?kind=${kind}`, { method: 'POST' });
+    const data = await res.json();
+    console.log('Simulated alert response:', data);
+    poll(); // Trigger instant refresh
+  } catch (e) {
+    console.error('Failed to trigger simulated alert:', e);
+  }
+}
+
+async function clearAlerts() {
+  try {
+    await fetch('/api/clear_alerts', { method: 'POST' });
+    knownAlertIds.clear();
+    const feed = document.getElementById('alertFeed');
+    feed.innerHTML = '<div class="empty">No alerts detected — system monitoring network perimeter...</div>';
+    poll();
+  } catch (e) {
+    console.error('Failed to clear alerts:', e);
+  }
+}
+
+
+// --- LIVE POLLING LOOP ---
+async function poll() {
+  try {
+    const [alertsRes, trafficRes, statsRes] = await Promise.all([
+      fetch('/api/alerts').then(r => r.json()),
+      fetch('/api/traffic').then(r => r.json()),
+      fetch('/api/stats').then(r => r.json()),
+    ]);
+
+    // 1. Update Alert Feed with de-duplicated reconciliation
+    renderAlerts(alertsRes);
+
+    // 2. Draw Traffic Chart
+    drawTraffic(trafficRes);
+
+    // 3. Update Health Hexagon Gauge
+    updateHexMeter(statsRes.health_score, statsRes.threat_level, statsRes.threat_color);
+
+    // 4. Update Stats & Radial Gauges
+    document.getElementById('totalAlertsVal').textContent = statsRes.total_alerts;
+    document.getElementById('recentAlertsVal').textContent = statsRes.recent_alerts_5m;
+    document.getElementById('packetsCount').textContent = statsRes.packets_seen;
+    document.getElementById('targetIpDisplay').textContent = statsRes.target_ip;
+    document.getElementById('sshUserDisplay').textContent = statsRes.ssh_user;
+
+    // Threat Velocity Gauge
+    updateRadialGauge('threatGauge', statsRes.threat_index, 100, statsRes.threat_color);
+    document.getElementById('threatGaugeVal').textContent = statsRes.threat_index;
+    document.getElementById('threatGaugeSub').textContent = `${statsRes.syn_velocity} pkts/s velocity`;
+
+    // Port Scan Gauge
+    const portScans = statsRes.by_kind ? (statsRes.by_kind.port_scan || 0) : 0;
+    updateRadialGauge('scanGauge', Math.min(portScans * 20, 100), 100, '#fbc02d');
+    document.getElementById('scanGaugeVal').textContent = portScans;
+
+    // Brute Force Gauge
+    const bruteFails = statsRes.by_kind ? (statsRes.by_kind.brute_force || 0) : 0;
+    updateRadialGauge('authGauge', Math.min(bruteFails * 25, 100), 100, '#ff3b5c');
+    document.getElementById('authGaugeVal').textContent = bruteFails;
+
+    // Gemini Status Pill
+    const geminiPill = document.getElementById('geminiPill');
+    if (statsRes.gemini_active) {
+      geminiPill.innerHTML = '<div class="led-dot"></div><span>Gemini 3.6 Flash: <b>ACTIVE</b></span>';
+    } else {
+      geminiPill.innerHTML = '<div class="led-dot" style="background: #ff9800; box-shadow: none;"></div><span>Gemini: <b>OFFLINE</b></span>';
+    }
+
+  } catch (e) {
+    console.error('Dashboard poll error:', e);
+  }
+}
+
+// Initial poll + 1500ms interval
+poll();
+setInterval(poll, 1500);
+</script>
+
+</body>
+</html>
